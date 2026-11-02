@@ -80,10 +80,14 @@ class Game:
     def start_meeting(self, reporter):
         self.in_meeting = True
 
+        # Create the meeting and preserve its copy of all bodies.
         self.meeting = Meeting(
             game=self,
             reporter=reporter
         )
+
+        # Remove bodies from the public map.
+        self.map.bodies.clear()
 
     @property
     def impostors(self):

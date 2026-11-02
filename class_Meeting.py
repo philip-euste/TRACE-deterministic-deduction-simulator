@@ -44,7 +44,7 @@ class Meeting:
         return any(
             body.killer == player
             and body.player.name == sighting["player"]
-            for body in self.game.map.bodies
+            for body in self.bodies
         )
 
     def share_sighting(self, player, sighting_index):

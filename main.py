@@ -1,7 +1,10 @@
-
 from class_Game import Game
 from helpers import print_all_players, print_memories
 
+
+# ==========================================
+# MAIN
+# ==========================================
 
 def main():
     game = Game(10, 5, 2)
@@ -12,10 +15,32 @@ def main():
     print("\n=== INITIAL MAP ===")
     game.map.print_map()
 
+    # Continue until one side satisfies its victory condition.
     while (
-        game.impostors < game.crewmates
-        and not game.in_meeting
+        game.impostors > 0
+        and game.impostors < game.crewmates
     ):
+
+        # ==================================
+        # MEETING
+        # ==================================
+
+        if game.in_meeting:
+            print("\n=== MEETING STARTED ===")
+
+            if game.meeting is not None:
+                game.meeting.conduct()
+
+            # End the meeting and allow the simulation to resume.
+            game.in_meeting = False
+            game.meeting = None
+
+            continue
+
+        # ==================================
+        # ADVANCE FRAME
+        # ==================================
+
         input("\nPress Enter to advance one frame...")
 
         game.frame += 1
@@ -27,10 +52,10 @@ def main():
         # 1. Everyone moves.
         game.map.move_players(game)
 
-        # 2. Resolve kills and identify the killer-victim pairs.
+        # 2. Resolve kills and identify killer-victim pairs.
         kill_events = game.map.resolve_kills(game.frame)
 
-        # 3. Record observations, excluding the killer's own kill encounter.
+        # 3. Record observations, excluding killer's own kill encounter.
         game.record_sightings(kill_events)
 
         # 4. Remove dead players from the map.
@@ -42,19 +67,31 @@ def main():
         # 6. Print the public map.
         game.map.print_map()
 
-    if game.in_meeting:
-        print("\n=== MEETING STARTED ===")
+    # ======================================
+    # GAME OVER
+    # ======================================
 
-        game.meeting.conduct()
+    print("\n" + "=" * 60)
+    print("GAME OVER")
+    print("=" * 60)
+
+    if game.impostors == 0:
+        print("CREWMATES WIN!")
 
     else:
-        print("\n=== GAME OVER ===")
+        print("IMPOSTORS WIN!")
 
-        if game.impostors >= game.crewmates:
-            print("IMPOSTORS WIN!")
+    print(
+        f"Living Impostors: {game.impostors}"
+    )
 
-        else:
-            print("CREWMATES WIN!")
+    print(
+        f"Living Crewmates: {game.crewmates}"
+    )
+
+    # ======================================
+    # FINAL RESULTS
+    # ======================================
 
     print("\n=== FINAL PLAYERS ===")
     print_all_players(game)
