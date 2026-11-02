@@ -1,6 +1,8 @@
+
 from random import randint, choice
 
 from class_Body import Body
+
 
 # ==========================================
 # MAP
@@ -46,7 +48,6 @@ class Map:
         ]
 
     def move_players(self, game):
-        # Calculate all movements first.
         movements = {}
 
         for player in game.players:
@@ -59,7 +60,6 @@ class Map:
 
             movements[player] = choice(possible_moves)
 
-        # Apply all movements simultaneously.
         for player, new_position in movements.items():
             player.position = new_position
 
@@ -77,6 +77,8 @@ class Map:
                 self.map[x][y].append(player)
 
     def resolve_kills(self, frame):
+        kill_events = []
+
         for x in range(self.length):
             for y in range(self.length):
 
@@ -99,14 +101,20 @@ class Map:
                     and len(impostors) >= len(crewmates)
                     and crewmates
                 ):
+                    killer = impostors[0]
 
                     for player in crewmates:
                         player.alive = False
 
+                        kill_events.append(
+                            (killer, player)
+                        )
+
                         body = Body(
                             player=player,
                             position=(x, y),
-                            death_frame=frame
+                            death_frame=frame,
+                            killer=killer
                         )
 
                         self.bodies.append(body)
@@ -116,7 +124,8 @@ class Map:
                             f"{player.name} was eliminated."
                         )
 
-        self.rebuild_map_after_kills()
+        # Keep dead players in their cells until sightings are recorded.
+        return kill_events
 
     def rebuild_map_after_kills(self):
         for row in self.map:
@@ -128,13 +137,6 @@ class Map:
                 ]
 
     def check_reports(self, game):
-        """
-        Discover every body currently occupied by
-        at least one living player.
-
-        Multiple bodies can be discovered in one frame.
-        """
-
         living_players = [
             player
             for player in game.players
@@ -160,21 +162,29 @@ class Map:
                 []
             )
 
-            if players_here:
+            eligible_reporters = [
+                player
+                for player in players_here
+                if not (
+                    player == body.killer
+                    and game.frame == body.death_frame
+                )
+            ]
+
+            if eligible_reporters:
                 discovered_bodies.append(
-                    (body, players_here[0])
+                    (body, eligible_reporters[0])
                 )
 
         if not discovered_bodies:
             return False
 
-        for body, discoverer in discovered_bodies:
-
+        for body, reporter in discovered_bodies:
             body.discovery_frame = game.frame
-            body.reported_by = discoverer
+            body.reported_by = reporter
 
             print(
-                f"\n{discoverer.name} discovered "
+                f"\n{reporter.name} discovered "
                 f"{body.player.name}'s body "
                 f"at {body.position}!"
             )
@@ -186,27 +196,19 @@ class Map:
         return True
 
     def print_map(self):
-        """
-        Show living players and discovered bodies only.
-        """
-
         print("\n" + "=" * 60)
 
         for x, row in enumerate(self.map):
             line = []
 
             for y, cell in enumerate(row):
-
                 names = [
                     player.name
                     for player in cell
                 ]
 
                 for body in self.bodies:
-                    if (
-                        body.discovered
-                        and body.position == (x, y)
-                    ):
+                    if body.position == (x, y):
                         names.append(
                             f"BODY:{body.player.name}"
                         )
@@ -224,4 +226,3 @@ class Map:
             )
 
         print("=" * 60)
-

@@ -1,8 +1,10 @@
+
 from class_Game import Game
 from helpers import print_all_players, print_memories
 
+
 def main():
-    game = Game(5, 2)
+    game = Game(10, 5)
 
     print("=== PLAYERS ===")
     print_all_players(game)
@@ -10,7 +12,6 @@ def main():
     print("\n=== INITIAL MAP ===")
     game.map.print_map()
 
-    # Main simulation loop.
     while (
         game.impostors < game.crewmates
         and not game.in_meeting
@@ -26,19 +27,21 @@ def main():
         # 1. Everyone moves.
         game.map.move_players(game)
 
-        # 2. Record observations.
-        game.record_sightings()
+        # 2. Resolve kills and identify the killer-victim pairs.
+        kill_events = game.map.resolve_kills(game.frame)
 
-        # 3. Resolve kills.
-        game.map.resolve_kills(game.frame)
+        # 3. Record observations, excluding the killer's own kill encounter.
+        game.record_sightings(kill_events)
 
-        # 4. Check for body discoveries.
+        # 4. Remove dead players from the map.
+        game.map.rebuild_map_after_kills()
+
+        # 5. Check for body discoveries.
         game.map.check_reports(game)
 
-        # 5. Print the public map.
+        # 6. Print the public map.
         game.map.print_map()
 
-    # Game termination or meeting.
     if game.in_meeting:
         print("\n=== MEETING STARTED ===")
 

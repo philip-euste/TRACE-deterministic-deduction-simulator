@@ -1,4 +1,3 @@
-
 # ==========================================
 # MEETING
 # ==========================================
@@ -20,10 +19,7 @@ class Meeting:
     # ======================================
 
     def share_position(self, player):
-        """
-        Disclose the player's current meeting position.
-        """
-
+        # Disclose the player's current meeting position.
         if not player.alive or player.position is None:
             return False
 
@@ -37,11 +33,19 @@ class Meeting:
 
         return True
 
-    def share_sighting(self, player, sighting_index):
-        """
-        Disclose one observation from private memory.
-        """
+    def is_concealed_kill_sighting(self, player, sighting):
+        # An Impostor omits sightings of players they killed.
+        if not player.is_impostor:
+            return False
 
+        return any(
+            body.killer == player
+            and body.player.name == sighting["player"]
+            for body in self.game.map.bodies
+        )
+
+    def share_sighting(self, player, sighting_index):
+        # Disclose one observation from private memory.
         if not player.alive:
             return False
 
@@ -51,6 +55,10 @@ class Meeting:
             return False
 
         original = player.memory["sightings"][sighting_index]
+
+        # Conceal encounters with the Impostor's own victims.
+        if self.is_concealed_kill_sighting(player, original):
+            return False
 
         observation = {
             "observer": player.name,
@@ -97,12 +105,7 @@ class Meeting:
         return count
 
     def disclose_all_information(self):
-        """
-        Every living player automatically shares:
-        1. Current position.
-        2. Every recorded sighting.
-        """
-
+        # Every living player shares their position and eligible sightings.
         print("\n=== AUTOMATIC INFORMATION DISCLOSURE ===")
 
         for player in self.game.players:
@@ -125,7 +128,6 @@ class Meeting:
 
     def verify_shared_sightings(self):
         for evidence in self.shared_sightings:
-
             observer = next(
                 (
                     player
@@ -168,17 +170,7 @@ class Meeting:
     # ======================================
 
     def get_player_constraints(self, player_name):
-        """
-        Build confirmed position constraints.
-
-        A player's position is known when:
-        - They personally observed someone in their cell.
-        - Someone else observed them in a cell.
-        - They disclosed their meeting position.
-
-        Multiple observations in one frame must agree.
-        """
-
+        # Build confirmed position constraints from shared observations.
         constraints = {}
 
         def add_constraint(frame, cell):
@@ -217,17 +209,7 @@ class Meeting:
     # ======================================
 
     def get_forward_reachable(self, player_name, max_frame):
-        """
-        Calculate every position a player could occupy
-        at each frame, respecting all observations.
-
-        Initial position is unknown, so every map cell
-        is initially possible.
-
-        Each subsequent frame requires exactly one
-        orthogonal movement.
-        """
-
+        # Calculate every position consistent with observations and movement.
         constraints = self.get_player_constraints(player_name)
 
         all_cells = {
@@ -236,7 +218,7 @@ class Meeting:
             for y in range(self.game.map.length)
         }
 
-        # Frame 0: unknown spawn location.
+        # Frame 0 has an unknown spawn location.
         reachable = {
             0: all_cells.copy()
         }
@@ -245,11 +227,9 @@ class Meeting:
             reachable[0].intersection_update(constraints[0])
 
         for frame in range(1, max_frame + 1):
-
             next_positions = set()
 
             for previous_position in reachable[frame - 1]:
-
                 neighbors = self.game.map.get_neighbors(
                     previous_position
                 )
@@ -271,17 +251,7 @@ class Meeting:
     # ======================================
 
     def get_feasible_trajectory(self, player_name):
-        """
-        Calculate positions that are consistent with
-        BOTH past observations and the meeting position.
-
-        Forward reachability alone is insufficient:
-        a position might be reachable in the past but
-        unable to reach the player's known final position.
-
-        Backward reachability removes those impossible paths.
-        """
-
+        # Combine past reachability with the known meeting position.
         meeting_frame = self.game.frame
 
         forward = self.get_forward_reachable(
@@ -294,11 +264,9 @@ class Meeting:
         }
 
         for frame in range(meeting_frame - 1, -1, -1):
-
             possible_previous = set()
 
             for previous_position in forward[frame]:
-
                 neighbors = self.game.map.get_neighbors(
                     previous_position
                 )
@@ -318,32 +286,16 @@ class Meeting:
     # ======================================
 
     def get_victim_reachability(self, body):
-        """
-        Calculate where the victim could have been
-        during every possible death frame.
-
-        The victim has no meeting position because
-        they are dead.
-        """
-
+        # Calculate where the victim could have been before discovery.
         tod_range = self.get_tod_range(body)
-
-        latest = tod_range["latest"]
 
         return self.get_forward_reachable(
             body.player.name,
-            latest
+            tod_range["latest"]
         )
 
     def get_possible_death_frames(self, body):
-        """
-        Return death frames consistent with:
-        - Time-of-death interval.
-        - Victim's recorded sightings.
-        - Victim's movement rules.
-        - Known body location, if discovered.
-        """
-
+        # Find death frames consistent with the time and victim movement.
         tod_range = self.get_tod_range(body)
 
         earliest = tod_range["earliest"]
@@ -360,20 +312,15 @@ class Meeting:
         possible_frames = []
 
         for frame in range(earliest, latest + 1):
-
             reachable_positions = victim_reachability[frame]
 
             if body.discovered:
-
-                # The victim must be able to reach
-                # the known body location.
+                # The victim must be able to reach the known body location.
                 if body.position in reachable_positions:
                     possible_frames.append(frame)
 
             else:
-
-                # The victim must have at least one
-                # possible position at death.
+                # The victim must have at least one possible death position.
                 if reachable_positions:
                     possible_frames.append(frame)
 
@@ -384,19 +331,8 @@ class Meeting:
     # ======================================
 
     def get_tod_range(self, body):
-        """
-        Sightings happen before kill resolution.
-
-        Therefore, a victim may die during the same
-        frame in which they were last seen.
-
-        Discovery frame is the latest possible death
-        frame for discovered bodies.
-
-        Meeting frame is the latest possible death
-        frame for undiscovered bodies.
-        """
-
+        # Sightings happen before kill resolution, so death can occur
+        # during the same frame as the victim's last sighting.
         latest = (
             body.discovery_frame
             if body.discovered
@@ -426,18 +362,7 @@ class Meeting:
     # ======================================
 
     def get_possible_locations_by_frame(self, body):
-        """
-        Return possible body locations for each
-        possible death frame.
-
-        For an undiscovered body:
-        - Victim must be able to reach the cell.
-        - No living player may currently occupy it.
-
-        For a discovered body:
-        - Its location is already known.
-        """
-
+        # Calculate possible body locations for every possible death frame.
         possible_frames = self.get_possible_death_frames(body)
 
         victim_reachability = self.get_victim_reachability(
@@ -450,14 +375,25 @@ class Meeting:
                 for frame in possible_frames
             }
 
-        occupied_cells = set(
-            self.shared_positions.values()
-        )
+        # A living player standing on an undiscovered body would normally
+        # have reported it. The killer is exempt only during the death frame.
+        occupied_cells = set()
+
+        for player in self.game.players:
+            if not player.alive or player.position is None:
+                continue
+
+            if (
+                player == body.killer
+                and self.game.frame == body.death_frame
+            ):
+                continue
+
+            occupied_cells.add(player.position)
 
         locations_by_frame = {}
 
         for frame in possible_frames:
-
             possible_cells = (
                 victim_reachability[frame].copy()
             )
@@ -471,11 +407,7 @@ class Meeting:
         return locations_by_frame
 
     def get_possible_locations(self, body):
-        """
-        Return the union of possible body locations
-        across all possible death frames.
-        """
-
+        # Combine possible locations across all possible death frames.
         if body.discovered:
             return [body.position]
 
@@ -494,38 +426,9 @@ class Meeting:
     # KILLER DEDUCTION
     # ======================================
 
-    def has_sighting(self, observer, victim, frame, cell):
-        """
-        Check whether the candidate automatically
-        disclosed seeing the victim at a specific
-        location and frame.
-
-        Under the current simulation rules, every
-        encounter is recorded before kill resolution.
-        """
-
-        return any(
-            evidence["observer"] == observer
-            and evidence["player"] == victim
-            and evidence["frame"] == frame
-            and evidence["cell"] == cell
-            for evidence in self.shared_sightings
-        )
-
     def get_candidate_kill_frames(self, body, candidate):
-        """
-        Find possible death frames for which the
-        candidate could have occupied the victim's
-        location.
-
-        Requirements:
-        1. Victim could be at the cell.
-        2. Candidate could be at the same cell.
-        3. Candidate disclosed seeing the victim there.
-        4. The evidence is consistent with the candidate's
-           complete movement trajectory.
-        """
-
+        # A candidate must be physically capable of sharing the victim's cell.
+        # Their own testimony is not required because an Impostor may omit it.
         if not self.verify_shared_sightings():
             raise ValueError("Sighting verification failed.")
 
@@ -544,31 +447,27 @@ class Meeting:
 
         for frame, victim_locations in locations_by_frame.items():
 
+            # A reporter cannot have killed this victim during the
+            # same frame in which they reported the body.
+            if (
+                candidate == body.reported_by
+                and frame == body.discovery_frame
+            ):
+                continue
+
             candidate_positions = candidate_trajectory[frame]
 
             shared_locations = (
                 victim_locations.intersection(candidate_positions)
             )
 
-            for cell in shared_locations:
-
-                if self.has_sighting(
-                    observer=candidate.name,
-                    victim=body.player.name,
-                    frame=frame,
-                    cell=cell
-                ):
-                    possible_kill_frames.append(frame)
-                    break
+            if shared_locations:
+                possible_kill_frames.append(frame)
 
         return possible_kill_frames
 
     def get_possible_killers(self, body):
-        """
-        Return living players who could have been
-        present with the victim at a possible death frame.
-        """
-
+        # Return living players who could have shared the victim's cell.
         candidates = [
             player
             for player in self.game.players
@@ -578,7 +477,6 @@ class Meeting:
         remaining_candidates = []
 
         for candidate in candidates:
-
             possible_frames = self.get_candidate_kill_frames(
                 body,
                 candidate
@@ -590,6 +488,7 @@ class Meeting:
         return remaining_candidates
 
     def get_deduction_result(self, body):
+        # Summarize the current investigation.
         tod_range = self.get_tod_range(body)
 
         possible_frames = self.get_possible_death_frames(
@@ -622,12 +521,14 @@ class Meeting:
     # ======================================
 
     def print_positions(self):
+        # Display disclosed meeting positions.
         print("\n=== DISCLOSED MEETING POSITIONS ===")
 
         for name, position in self.shared_positions.items():
             print(f"{name}: {position}")
 
     def print_evidence(self):
+        # Display every sighting shared during the meeting.
         print("\n=== SHARED SIGHTINGS ===")
 
         if not self.shared_sightings:
@@ -646,11 +547,7 @@ class Meeting:
             )
 
     def print_trajectory(self, player):
-        """
-        Debug display of a living player's feasible
-        positions across all frames.
-        """
-
+        # Display a living player's feasible positions across all frames.
         trajectory = self.get_feasible_trajectory(
             player.name
         )
@@ -658,7 +555,6 @@ class Meeting:
         print(f"\n=== {player.name}'S FEASIBLE TRAJECTORY ===")
 
         for frame in range(self.game.frame + 1):
-
             positions = sorted(trajectory[frame])
 
             print(
@@ -666,6 +562,7 @@ class Meeting:
             )
 
     def print_body_investigation(self, body):
+        # Display the evidence and deduction result for one body.
         print("\n" + "-" * 60)
 
         print(f"VICTIM: {body.player.name}")
@@ -733,6 +630,7 @@ class Meeting:
             print("No candidate satisfies the evidence.")
 
     def print_investigation(self):
+        # Investigate every body, including undiscovered bodies.
         print("\n" + "=" * 60)
         print("MULTI-BODY INVESTIGATION")
         print("=" * 60)
@@ -749,6 +647,7 @@ class Meeting:
     # ======================================
 
     def conduct(self):
+        # Run disclosure, verification, and investigation.
         print("\n" + "=" * 60)
         print("MEETING")
         print("=" * 60)

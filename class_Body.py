@@ -3,12 +3,13 @@
 # ==========================================
 
 class Body:
-    def __init__(self, player, position, death_frame):
+    def __init__(self, player, position, death_frame, killer):
         self.player = player
 
         # Hidden ground truth.
         self.position = position
         self.death_frame = death_frame
+        self.killer = killer
 
         # Public investigation information.
         self.discovery_frame = None

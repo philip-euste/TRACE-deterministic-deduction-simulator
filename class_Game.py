@@ -1,8 +1,11 @@
+
 from random import choice
 
 from class_Player import Player
 from class_Map import Map
 from class_Meeting import Meeting
+
+
 # ==========================================
 # GAME
 # ==========================================
@@ -28,13 +31,9 @@ class Game:
 
         self.map.spawn_players(self)
 
-    def record_sightings(self):
-        """
-        Record every encounter between living players
-        occupying the same cell.
-
-        Each observer gets an independent record.
-        """
+    def record_sightings(self, kill_events=None):
+        # Convert kill events into a set for quick lookup.
+        kill_events = set(kill_events or [])
 
         for observer in self.players:
             if not observer.alive or observer.position is None:
@@ -44,6 +43,10 @@ class Game:
 
             for target in self.map.map[x][y]:
                 if target == observer:
+                    continue
+
+                # Do not record the encounter that caused this observer's kill.
+                if (observer, target) in kill_events:
                     continue
 
                 observer.memory["sightings"].append({
@@ -73,4 +76,3 @@ class Game:
             player.alive and not player.is_impostor
             for player in self.players
         )
-
