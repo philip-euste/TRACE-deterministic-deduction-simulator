@@ -4,7 +4,7 @@ from helpers import print_all_players, print_memories
 
 
 def main():
-    game = Game(10, 5)
+    game = Game(10, 5, 2)
 
     print("=== PLAYERS ===")
     print_all_players(game)

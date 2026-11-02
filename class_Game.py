@@ -1,5 +1,5 @@
 
-from random import choice
+from random import sample
 
 from class_Player import Player
 from class_Map import Map
@@ -11,9 +11,22 @@ from class_Meeting import Meeting
 # ==========================================
 
 class Game:
-    def __init__(self, player_count=5, length=3):
+    def __init__(
+        self,
+        player_count=5,
+        length=3,
+        murderer_count=1
+    ):
         if player_count < 2:
             raise ValueError("Need at least 2 players.")
+
+        if murderer_count < 1:
+            raise ValueError("Need at least 1 murderer.")
+
+        if murderer_count >= player_count:
+            raise ValueError(
+                "There must be at least 1 Crewmate."
+            )
 
         self.players = [
             Player(f"P{i+1}")
@@ -22,8 +35,17 @@ class Game:
 
         self.map = Map(length)
 
-        self.impostor = choice(self.players)
-        self.impostor.is_impostor = True
+        # Randomly select the configured number of murderers.
+        self.murderers = sample(
+            self.players,
+            murderer_count
+        )
+
+        for murderer in self.murderers:
+            murderer.is_impostor = True
+
+        # Preserve the original singular attribute for compatibility.
+        self.impostor = self.murderers[0]
 
         self.in_meeting = False
         self.meeting = None

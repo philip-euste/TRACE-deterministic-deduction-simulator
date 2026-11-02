@@ -1,3 +1,5 @@
+from class_Voting import Voting
+
 
 # ==========================================
 # MEETING
@@ -650,7 +652,7 @@ class Meeting:
     # ======================================
 
     def conduct(self):
-        # Run disclosure, verification, and investigation.
+        # Run disclosure, verification, investigation, and voting.
         print("\n" + "=" * 60)
         print("MEETING")
         print("=" * 60)
@@ -680,3 +682,7 @@ class Meeting:
                 self.print_trajectory(player)
 
         self.print_investigation()
+
+        # Begin voting after all bodies have been investigated.
+        voting = Voting(self)
+        voting.conduct()
