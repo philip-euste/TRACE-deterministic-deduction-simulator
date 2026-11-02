@@ -1,3 +1,6 @@
+from colorama import Fore, Style
+
+
 # ==========================================
 # VOTING
 # ==========================================
@@ -79,7 +82,6 @@ class Voting:
     # ======================================
 
     def collect_votes(self):
-        # Calculate votes separately for every body.
         print("\n" + "=" * 60)
         print("INDIVIDUAL VOTING")
         print("=" * 60)
@@ -94,6 +96,11 @@ class Voting:
             )
 
             for player in self.game.players:
+
+                # Dead players do not participate in voting.
+                if not player.alive:
+                    continue
+
                 votes = self.get_player_votes(
                     player,
                     body
@@ -101,44 +108,29 @@ class Voting:
 
                 self.player_votes[player][body.player.name] = votes
 
-                if player.alive:
-                    # Add this body's votes to the final tally.
-                    for candidate in votes:
-                        self.vote_counts[candidate] += 1
+                # Add this body's votes to the final tally.
+                for candidate in votes:
+                    self.vote_counts[candidate] += 1
 
-                    vote_names = [
-                        candidate.name
-                        for candidate in votes
-                    ]
+                vote_names = [
+                    candidate.name
+                    for candidate in votes
+                ]
 
-                    print(
-                        f"{player.name} voted for "
-                        f"{vote_names} "
-                        f"for {body.player.name}'s body"
-                    )
-
-                else:
-                    print(
-                        f"{player.name} voted for [] "
-                        f"for {body.player.name}'s body "
-                        f"(dead)"
-                    )
+                print(
+                    f"{player.name} voted for "
+                    f"{vote_names} "
+                    f"for {body.player.name}'s body"
+                )
 
     # ======================================
     # FINAL TALLY
     # ======================================
 
     def calculate_results(self):
-        # Display the accumulated votes from every body.
         print("\n" + "=" * 60)
         print("FINAL VOTE TALLY")
         print("=" * 60)
-
-        for player in self.game.players:
-            print(
-                f"{player.name}: "
-                f"{self.vote_counts[player]} vote(s)"
-            )
 
         living_players = [
             player
@@ -157,9 +149,33 @@ class Voting:
 
         # No votes means nobody is ejected.
         if highest_votes == 0:
+            for player in living_players:
+                print(
+                    f"{player.name}: "
+                    f"{self.vote_counts[player]} vote(s)"
+                )
+
             print("\nNobody received any votes.")
             print("Nobody is ejected.")
+
             return None
+
+        # Highlight every player tied for the highest vote count.
+        for player in living_players:
+            vote_count = self.vote_counts[player]
+
+            if vote_count == highest_votes:
+                print(
+                    f"{Fore.RED}{Style.BRIGHT}"
+                    f"{player.name}: {vote_count} vote(s)"
+                    f"{Style.RESET_ALL}"
+                )
+
+            else:
+                print(
+                    f"{player.name}: "
+                    f"{vote_count} vote(s)"
+                )
 
         highest_candidates = [
             player

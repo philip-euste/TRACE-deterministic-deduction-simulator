@@ -1,5 +1,6 @@
 from class_Game import Game
-from helpers import print_all_players, print_memories
+from helpers import print_all_players
+from colors import install_colorama
 
 
 # ==========================================
@@ -7,6 +8,9 @@ from helpers import print_all_players, print_memories
 # ==========================================
 
 def main():
+    # Enable terminal colours before starting the simulation.
+    install_colorama()
+
     game = Game(10, 5, 2)
 
     print("=== PLAYERS ===")
@@ -30,6 +34,9 @@ def main():
 
             if game.meeting is not None:
                 game.meeting.conduct()
+
+            # Clear bodies only after the meeting has concluded.
+            game.map.bodies.clear()
 
             # End the meeting and allow the simulation to resume.
             game.in_meeting = False
@@ -95,9 +102,6 @@ def main():
 
     print("\n=== FINAL PLAYERS ===")
     print_all_players(game)
-
-    print_memories(game)
-
 
 if __name__ == "__main__":
     main()

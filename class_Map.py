@@ -200,35 +200,62 @@ class Map:
         game.start_meeting(reporter)
 
         return True
-
+    
     def print_map(self):
+        from colorama import Fore, Style
+
         print("\n" + "=" * 60)
 
         for x, row in enumerate(self.map):
             line = []
 
             for y, cell in enumerate(row):
-                names = [
+                entries = [
                     player.name
                     for player in cell
                 ]
 
-                for body in self.bodies:
-                    if body.position == (x, y):
-                        names.append(
-                            f"BODY:{body.player.name}"
-                        )
+                bodies_here = [
+                    body
+                    for body in self.bodies
+                    if body.position == (x, y)
+                ]
 
-                if not names:
-                    names.append(".")
+                # Build the cell using plain text first.
+                cell_text = ",".join(entries)
 
-                line.append(",".join(names))
+                if not cell_text and not bodies_here:
+                    cell_text = "."
 
-            print(
-                " | ".join(
-                    f"{cell:^16}"
-                    for cell in line
-                )
-            )
+                # Add body names separately so only they are red.
+                for body in bodies_here:
+                    if cell_text == ".":
+                        cell_text = ""
+
+                    if cell_text:
+                        cell_text += ","
+
+                    cell_text += f"BODY:{body.player.name}"
+
+                # Calculate spacing before adding colour codes.
+                padded_cell = f"{cell_text:^16}"
+
+                for body in bodies_here:
+                    body_text = f"BODY:{body.player.name}"
+
+                    colored_body = (
+                        f"{Fore.RED}{Style.BRIGHT}"
+                        f"{body_text}"
+                        f"{Style.RESET_ALL}"
+                    )
+
+                    padded_cell = padded_cell.replace(
+                        body_text,
+                        colored_body
+                    )
+
+                line.append(padded_cell)
+
+            print(" | ".join(line))
 
         print("=" * 60)
