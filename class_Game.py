@@ -1,4 +1,3 @@
-
 from random import sample
 
 from class_Player import Player
@@ -15,7 +14,8 @@ class Game:
         self,
         player_count=5,
         length=3,
-        murderer_count=1
+        murderer_count=1,
+        alibi_mode=0
     ):
         if player_count < 2:
             raise ValueError("Need at least 2 players.")
@@ -28,12 +28,20 @@ class Game:
                 "There must be at least 1 Crewmate."
             )
 
+        if alibi_mode not in (0, 1):
+            raise ValueError(
+                "Alibi mode must be 0 or 1."
+            )
+
         self.players = [
             Player(f"P{i+1}")
             for i in range(player_count)
         ]
 
         self.map = Map(length)
+
+        # Configure the alibi system.
+        self.alibi_mode = alibi_mode
 
         # Randomly select the configured number of murderers.
         self.murderers = sample(
@@ -53,7 +61,31 @@ class Game:
 
         self.map.spawn_players(self)
 
+        # Record everyone's initial spawn position.
+        self.record_positions()
+
+    # ======================================
+    # POSITION HISTORY
+    # ======================================
+
+    def record_positions(self):
+        # Record every player's position for the current frame.
+        for player in self.players:
+            if player.position is None:
+                continue
+
+            player.position_history[self.frame] = (
+                player.position
+            )
+
+    # ======================================
+    # SIGHTING MEMORY
+    # ======================================
+
     def record_sightings(self, kill_events=None):
+        # Record positions before processing observations.
+        self.record_positions()
+
         # Convert kill events into a set for quick lookup.
         kill_events = set(kill_events or [])
 
@@ -77,6 +109,10 @@ class Game:
                     "cell": observer.position
                 })
 
+    # ======================================
+    # MEETING
+    # ======================================
+
     def start_meeting(self, reporter):
         self.in_meeting = True
 
@@ -85,6 +121,10 @@ class Game:
             game=self,
             reporter=reporter
         )
+
+    # ======================================
+    # PLAYER COUNTS
+    # ======================================
 
     @property
     def impostors(self):

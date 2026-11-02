@@ -14,27 +14,19 @@ class Meeting:
         self.bodies = game.map.bodies.copy()
 
         self.shared_sightings = []
-        self.shared_positions = {}
+        self.shared_alibis = []
+
         self.statements = []
 
+        # Store alibis separately for each body and candidate.
+        self.alibi_disclosures = {}
+
+        # Preserve the original candidate-frame requirements.
+        self.initial_alibi_requirements = {}
+
     # ======================================
-    # AUTOMATIC DISCLOSURE
+    # SIGHTING DISCLOSURE
     # ======================================
-
-    def share_position(self, player):
-        # Disclose the player's current meeting position.
-        if not player.alive or player.position is None:
-            return False
-
-        self.shared_positions[player.name] = player.position
-
-        self.statements.append({
-            "speaker": player.name,
-            "type": "position",
-            "cell": player.position
-        })
-
-        return True
 
     def is_concealed_kill_sighting(self, player, sighting):
         # An Impostor omits sightings of players they killed.
@@ -108,20 +100,17 @@ class Meeting:
         return count
 
     def disclose_all_information(self):
-        # Every living player shares their position and eligible sightings.
+        # Every living player shares eligible sightings.
         print("\n=== AUTOMATIC INFORMATION DISCLOSURE ===")
 
         for player in self.game.players:
             if not player.alive:
                 continue
 
-            self.share_position(player)
-
             count = self.share_all_sightings(player)
 
             print(
                 f"{player.name}: "
-                f"Position {player.position} | "
                 f"{count} sighting(s) disclosed."
             )
 
@@ -155,16 +144,217 @@ class Meeting:
 
         return True
 
-    def verify_shared_positions(self):
-        for player in self.game.players:
-            if not player.alive:
+    # ======================================
+    # EXPLICIT ALIBIS
+    # ======================================
+
+    def get_initial_candidate_kill_frames(
+        self,
+        body,
+        candidate
+    ):
+        # Calculate possible kill frames without explicit alibis.
+        if not self.verify_shared_sightings():
+            raise ValueError("Sighting verification failed.")
+
+        candidate_trajectory = (
+            self.get_feasible_trajectory(
+                candidate.name,
+                include_alibis=False
+            )
+        )
+
+        locations_by_frame = (
+            self.get_possible_locations_by_frame(
+                body,
+                include_alibis=False
+            )
+        )
+
+        possible_kill_frames = []
+
+        for frame, victim_locations in locations_by_frame.items():
+
+            # A reporter cannot kill during their reporting frame.
+            if (
+                candidate == body.reported_by
+                and frame == body.discovery_frame
+            ):
                 continue
 
-            if player.name not in self.shared_positions:
+            candidate_positions = candidate_trajectory[frame]
+
+            shared_locations = (
+                victim_locations.intersection(candidate_positions)
+            )
+
+            if shared_locations:
+                possible_kill_frames.append(frame)
+
+        return possible_kill_frames
+
+    def prepare_alibi_requirements(self):
+        # Calculate every requirement before anyone discloses an alibi.
+        self.initial_alibi_requirements = {}
+
+        for body in self.bodies:
+            candidates = [
+                player
+                for player in self.game.players
+                if player.alive and player != body.player
+            ]
+
+            for candidate in candidates:
+                frames = self.get_initial_candidate_kill_frames(
+                    body,
+                    candidate
+                )
+
+                self.initial_alibi_requirements[
+                    (body, candidate)
+                ] = frames
+
+    def share_candidate_alibi(
+        self,
+        body,
+        candidate,
+        frame
+    ):
+        # Disclose a candidate's actual position at one frame.
+        if not candidate.alive:
+            return False
+
+        position = candidate.position_history.get(frame)
+
+        if position is None:
+            return False
+
+        key = (body, candidate)
+
+        if key not in self.alibi_disclosures:
+            self.alibi_disclosures[key] = {}
+
+        # Avoid duplicate disclosures.
+        if frame in self.alibi_disclosures[key]:
+            return False
+
+        disclosure = {
+            "body": body.player.name,
+            "candidate": candidate.name,
+            "frame": frame,
+            "position": position
+        }
+
+        self.alibi_disclosures[key][frame] = disclosure
+
+        self.shared_alibis.append(disclosure)
+
+        self.statements.append({
+            "speaker": candidate.name,
+            "type": "alibi",
+            "disclosure": disclosure.copy()
+        })
+
+        return True
+
+    def disclose_all_alibis(self):
+        # Explicit mode requires every candidate to disclose
+        # every frame in their initial possible kill-frame list.
+        if self.game.alibi_mode != 1:
+            return
+
+        print("\n=== EXPLICIT ALIBI DISCLOSURE ===")
+
+        # First calculate all requirements using the original evidence.
+        self.prepare_alibi_requirements()
+
+        # Then collect the required disclosures.
+        for body in self.bodies:
+            print(
+                f"\n--- ALIBIS FOR {body.player.name}'S BODY ---"
+            )
+
+            candidates = [
+                player
+                for player in self.game.players
+                if player.alive and player != body.player
+            ]
+
+            for candidate in candidates:
+                frames = self.initial_alibi_requirements.get(
+                    (body, candidate),
+                    []
+                )
+
+                if not frames:
+                    continue
+
+                print(
+                    f"\n{candidate.name} must disclose "
+                    f"frames {frames}:"
+                )
+
+                for frame in frames:
+                    disclosed = self.share_candidate_alibi(
+                        body,
+                        candidate,
+                        frame
+                    )
+
+                    if not disclosed:
+                        print(
+                            f"  Frame {frame}: "
+                            "Position unavailable."
+                        )
+                        continue
+
+                    position = (
+                        self.alibi_disclosures[
+                            (body, candidate)
+                        ][frame]["position"]
+                    )
+
+                    print(
+                        f"  Frame {frame}: {position}"
+                    )
+
+    def verify_shared_alibis(self):
+        # Verify every disclosed position against actual history.
+        for disclosure in self.shared_alibis:
+            candidate = next(
+                (
+                    player
+                    for player in self.game.players
+                    if player.name == disclosure["candidate"]
+                ),
+                None
+            )
+
+            if candidate is None:
                 return False
 
-            if self.shared_positions[player.name] != player.position:
+            original_position = (
+                candidate.position_history.get(
+                    disclosure["frame"]
+                )
+            )
+
+            if original_position != disclosure["position"]:
                 return False
+
+        # Verify that every required frame was disclosed.
+        if self.game.alibi_mode == 1:
+            for key, required_frames in (
+                self.initial_alibi_requirements.items()
+            ):
+                disclosures = self.alibi_disclosures.get(
+                    key,
+                    {}
+                )
+
+                for frame in required_frames:
+                    if frame not in disclosures:
+                        return False
 
         return True
 
@@ -172,8 +362,12 @@ class Meeting:
     # MOVEMENT CONSTRAINTS
     # ======================================
 
-    def get_player_constraints(self, player_name):
-        # Build confirmed position constraints from shared observations.
+    def get_player_constraints(
+        self,
+        player_name,
+        include_alibis=True
+    ):
+        # Build confirmed position constraints.
         constraints = {}
 
         def add_constraint(frame, cell):
@@ -182,6 +376,7 @@ class Meeting:
             else:
                 constraints[frame].intersection_update({cell})
 
+        # Add constraints from shared sightings.
         for evidence in self.shared_sightings:
 
             # The target's position is confirmed.
@@ -198,22 +393,36 @@ class Meeting:
                     evidence["cell"]
                 )
 
-        # Meeting position is a final position constraint.
-        if player_name in self.shared_positions:
-            add_constraint(
-                self.game.frame,
-                self.shared_positions[player_name]
-            )
+        # Add explicitly disclosed positions.
+        if (
+            include_alibis
+            and self.game.alibi_mode == 1
+        ):
+            for disclosure in self.shared_alibis:
+                if disclosure["candidate"] == player_name:
+                    add_constraint(
+                        disclosure["frame"],
+                        disclosure["position"]
+                    )
 
+        # Meeting positions are not automatically disclosed.
         return constraints
 
     # ======================================
     # FORWARD REACHABILITY
     # ======================================
 
-    def get_forward_reachable(self, player_name, max_frame):
-        # Calculate every position consistent with observations and movement.
-        constraints = self.get_player_constraints(player_name)
+    def get_forward_reachable(
+        self,
+        player_name,
+        max_frame,
+        include_alibis=True
+    ):
+        # Calculate every position consistent with observations.
+        constraints = self.get_player_constraints(
+            player_name,
+            include_alibis
+        )
 
         all_cells = {
             (x, y)
@@ -240,7 +449,7 @@ class Meeting:
 
                 next_positions.update(possible_moves)
 
-            # Remove positions contradicting observations.
+            # Remove positions contradicting observations and alibis.
             if frame in constraints:
                 next_positions.intersection_update(
                     constraints[frame]
@@ -254,13 +463,18 @@ class Meeting:
     # BACKWARD REACHABILITY
     # ======================================
 
-    def get_feasible_trajectory(self, player_name):
-        # Combine past reachability with the known meeting position.
+    def get_feasible_trajectory(
+        self,
+        player_name,
+        include_alibis=True
+    ):
+        # Calculate positions consistent with all available constraints.
         meeting_frame = self.game.frame
 
         forward = self.get_forward_reachable(
             player_name,
-            meeting_frame
+            meeting_frame,
+            include_alibis
         )
 
         feasible = {
@@ -290,17 +504,26 @@ class Meeting:
     # VICTIM REACHABILITY
     # ======================================
 
-    def get_victim_reachability(self, body):
+    def get_victim_reachability(
+        self,
+        body,
+        include_alibis=True
+    ):
         # Calculate where the victim could have been before discovery.
         tod_range = self.get_tod_range(body)
 
         return self.get_forward_reachable(
             body.player.name,
-            tod_range["latest"]
+            tod_range["latest"],
+            include_alibis
         )
 
-    def get_possible_death_frames(self, body):
-        # Find death frames consistent with the time and victim movement.
+    def get_possible_death_frames(
+        self,
+        body,
+        include_alibis=True
+    ):
+        # Find death frames consistent with victim movement.
         tod_range = self.get_tod_range(body)
 
         earliest = tod_range["earliest"]
@@ -311,7 +534,8 @@ class Meeting:
         latest = tod_range["latest"]
 
         victim_reachability = self.get_victim_reachability(
-            body
+            body,
+            include_alibis
         )
 
         possible_frames = []
@@ -366,12 +590,20 @@ class Meeting:
     # BODY LOCATION DEDUCTION
     # ======================================
 
-    def get_possible_locations_by_frame(self, body):
+    def get_possible_locations_by_frame(
+        self,
+        body,
+        include_alibis=True
+    ):
         # Calculate possible body locations for every possible death frame.
-        possible_frames = self.get_possible_death_frames(body)
+        possible_frames = self.get_possible_death_frames(
+            body,
+            include_alibis
+        )
 
         victim_reachability = self.get_victim_reachability(
-            body
+            body,
+            include_alibis
         )
 
         if body.discovered:
@@ -411,13 +643,20 @@ class Meeting:
 
         return locations_by_frame
 
-    def get_possible_locations(self, body):
+    def get_possible_locations(
+        self,
+        body,
+        include_alibis=True
+    ):
         # Combine possible locations across all possible death frames.
         if body.discovered:
             return [body.position]
 
         locations_by_frame = (
-            self.get_possible_locations_by_frame(body)
+            self.get_possible_locations_by_frame(
+                body,
+                include_alibis
+            )
         )
 
         possible_locations = set()
@@ -432,13 +671,15 @@ class Meeting:
     # ======================================
 
     def get_candidate_kill_frames(self, body, candidate):
-        # A candidate must be physically capable of sharing the victim's cell.
-        # Their own testimony is not required because an Impostor may omit it.
+        # Use recalculated trajectories, including explicit alibis.
         if not self.verify_shared_sightings():
             raise ValueError("Sighting verification failed.")
 
-        if not self.verify_shared_positions():
-            raise ValueError("Position verification failed.")
+        if (
+            self.game.alibi_mode == 1
+            and not self.verify_shared_alibis()
+        ):
+            raise ValueError("Alibi verification failed.")
 
         candidate_trajectory = (
             self.get_feasible_trajectory(candidate.name)
@@ -452,8 +693,8 @@ class Meeting:
 
         for frame, victim_locations in locations_by_frame.items():
 
-            # A reporter cannot have killed this victim during the
-            # same frame in which they reported the body.
+            # A reporter cannot have killed this victim during
+            # the same frame in which they reported the body.
             if (
                 candidate == body.reported_by
                 and frame == body.discovery_frame
@@ -525,13 +766,6 @@ class Meeting:
     # DISPLAY
     # ======================================
 
-    def print_positions(self):
-        # Display disclosed meeting positions.
-        print("\n=== DISCLOSED MEETING POSITIONS ===")
-
-        for name, position in self.shared_positions.items():
-            print(f"{name}: {position}")
-
     def print_evidence(self):
         # Display every sighting shared during the meeting.
         print("\n=== SHARED SIGHTINGS ===")
@@ -552,7 +786,7 @@ class Meeting:
             )
 
     def print_trajectory(self, player):
-        # Display a living player's feasible positions across all frames.
+        # Display positions consistent with all disclosed information.
         trajectory = self.get_feasible_trajectory(
             player.name
         )
@@ -614,10 +848,19 @@ class Meeting:
         print("\nPOSSIBLE KILLERS")
 
         if result["status"] == "unique":
-            print(
-                f"Unique candidate: "
-                f"{result['candidates'][0].name}"
+            candidate = result["candidates"][0]
+
+            frames = self.get_candidate_kill_frames(
+                body,
+                candidate
             )
+
+            print(
+                f"- {candidate.name} "
+                f"(possible death frames: {frames})"
+            )
+
+            print("Unique candidate.")
 
         elif result["status"] == "ambiguous":
             for candidate in result["candidates"]:
@@ -661,22 +904,31 @@ class Meeting:
 
         self.disclose_all_information()
 
-        print("\n=== VERIFYING EVIDENCE ===")
+        print("\n=== VERIFYING SIGHTINGS ===")
 
         if not self.verify_shared_sightings():
             print("Sighting verification failed.")
             return
 
-        if not self.verify_shared_positions():
-            print("Position verification failed.")
-            return
+        print("All shared sightings are verified.")
 
-        print("All shared evidence is verified.")
-
-        self.print_positions()
         self.print_evidence()
 
-        # Display trajectories of living players.
+        # Collect explicit alibis before recalculating trajectories.
+        if self.game.alibi_mode == 1:
+            self.disclose_all_alibis()
+
+            print("\n=== VERIFYING EXPLICIT ALIBIS ===")
+
+            if not self.verify_shared_alibis():
+                print("Alibi verification failed.")
+                return
+
+            print("All required alibis are verified.")
+
+        # All trajectories now include every disclosed alibi.
+        print("\n=== RECALCULATED FEASIBLE TRAJECTORIES ===")
+
         for player in self.game.players:
             if player.alive:
                 self.print_trajectory(player)

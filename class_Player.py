@@ -13,6 +13,8 @@ class Player:
             "sightings": []
         }
 
+        # Actual position history, indexed by frame.
+        self.position_history = {}
+
     def __repr__(self):
         return self.name
-

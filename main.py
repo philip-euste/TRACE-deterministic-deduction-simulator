@@ -11,7 +11,8 @@ def main():
     # Enable terminal colours before starting the simulation.
     install_colorama()
 
-    game = Game(10, 5, 2)
+    game = Game(15, 5, 3, 1)
+    # game = Game(15, 5, 2, 0)
 
     print("=== PLAYERS ===")
     print_all_players(game)

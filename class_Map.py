@@ -168,14 +168,27 @@ class Map:
                 []
             )
 
-            eligible_reporters = [
-                player
-                for player in players_here
-                if not (
-                    player == body.killer
-                    and game.frame == body.death_frame
-                )
-            ]
+            eligible_reporters = []
+
+            for player in players_here:
+
+                # The killer cannot report while continuously
+                # remaining at the location where the victim died.
+                if player == body.killer:
+
+                    has_left_body_location = any(
+                        player.position_history.get(frame) is not None
+                        and player.position_history[frame] != body.position
+                        for frame in range(
+                            body.death_frame + 1,
+                            game.frame + 1
+                        )
+                    )
+
+                    if not has_left_body_location:
+                        continue
+
+                eligible_reporters.append(player)
 
             if eligible_reporters:
                 discovered_bodies.append(

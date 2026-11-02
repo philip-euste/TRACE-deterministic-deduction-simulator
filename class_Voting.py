@@ -218,10 +218,18 @@ class Voting:
         # Remove the ejected player from map occupancy.
         self.game.map.rebuild_map(self.game)
 
-        print(
-            f"\n{ejected_player.name} was ejected!"
-        )
+        if ejected_player.is_impostor:
+            role = "an Impostor"
+            color = Fore.RED
+        else:
+            role = "a Crewmate"
+            color = Fore.GREEN
 
+        print(
+            f"\n{ejected_player.name}, "
+            f"{color}{Style.BRIGHT}{role}{Style.RESET_ALL}, "
+            f"was ejected!"
+        )
         return ejected_player
 
     # ======================================
