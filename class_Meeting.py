@@ -1,3 +1,4 @@
+
 # ==========================================
 # MEETING
 # ==========================================
@@ -230,11 +231,12 @@ class Meeting:
             next_positions = set()
 
             for previous_position in reachable[frame - 1]:
-                neighbors = self.game.map.get_neighbors(
+                # Includes staying still and all valid orthogonal moves.
+                possible_moves = self.game.map.get_neighbors(
                     previous_position
                 )
 
-                next_positions.update(neighbors)
+                next_positions.update(possible_moves)
 
             # Remove positions contradicting observations.
             if frame in constraints:
@@ -267,13 +269,14 @@ class Meeting:
             possible_previous = set()
 
             for previous_position in forward[frame]:
-                neighbors = self.game.map.get_neighbors(
+                # Staying still is also a valid transition.
+                possible_moves = self.game.map.get_neighbors(
                     previous_position
                 )
 
                 if any(
                     neighbor in feasible[frame + 1]
-                    for neighbor in neighbors
+                    for neighbor in possible_moves
                 ):
                     possible_previous.add(previous_position)
 

@@ -31,18 +31,21 @@ class Map:
             self.map[x][y].append(player)
 
     def get_neighbors(self, position):
+        # Include staying still as a valid movement choice.
         x, y = position
 
-        neighbors = [
+        possible_moves = [
+            (x, y),
             (x - 1, y),
             (x + 1, y),
             (x, y - 1),
             (x, y + 1)
         ]
 
+        # Remove movement choices that leave the map.
         return [
             (nx, ny)
-            for nx, ny in neighbors
+            for nx, ny in possible_moves
             if 0 <= nx < self.length
             and 0 <= ny < self.length
         ]
@@ -50,6 +53,7 @@ class Map:
     def move_players(self, game):
         movements = {}
 
+        # Decide everyone's movement before updating positions.
         for player in game.players:
             if not player.alive or player.position is None:
                 continue
@@ -58,8 +62,10 @@ class Map:
                 player.position
             )
 
+            # Every valid action has an equal probability.
             movements[player] = choice(possible_moves)
 
+        # Apply all movements simultaneously.
         for player, new_position in movements.items():
             player.position = new_position
 
