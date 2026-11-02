@@ -1,6 +1,5 @@
-
-from helpers import Game, print_all_players, print_memories
-
+from class_Game import Game
+from helpers import print_all_players, print_memories
 
 def main():
     game = Game(5, 2)
@@ -11,17 +10,18 @@ def main():
     print("\n=== INITIAL MAP ===")
     game.map.print_map()
 
-    # Main simulation loop
-    while game.impostors < game.crewmates:
-        input()
-
-        if game.in_meeting:
-            break
+    # Main simulation loop.
+    while (
+        game.impostors < game.crewmates
+        and not game.in_meeting
+    ):
+        input("\nPress Enter to advance one frame...")
 
         game.frame += 1
 
-        print(f"\n\n========== FRAME {game.frame} ==========")
-
+        print(
+            f"\n\n========== FRAME {game.frame} =========="
+        )
 
         # 1. Everyone moves.
         game.map.move_players(game)
@@ -32,16 +32,17 @@ def main():
         # 3. Resolve kills.
         game.map.resolve_kills(game.frame)
 
-        # 4. Print map.
-        game.map.print_map()
-
-        # 5. Check reports.
+        # 4. Check for body discoveries.
         game.map.check_reports(game)
 
-    # Game termination
+        # 5. Print the public map.
+        game.map.print_map()
+
+    # Game termination or meeting.
     if game.in_meeting:
         print("\n=== MEETING STARTED ===")
-        print("Simulation paused. Awaiting meeting instructions.")
+
+        game.meeting.conduct()
 
     else:
         print("\n=== GAME OVER ===")
@@ -53,8 +54,8 @@ def main():
             print("CREWMATES WIN!")
 
     print("\n=== FINAL PLAYERS ===")
-
     print_all_players(game)
+
     print_memories(game)
 
 
