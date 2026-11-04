@@ -8,7 +8,7 @@ The system supports two investigation modes: **Unconfirmed Alibis**, which relie
 
 ## Version
 
-**Development Version**
+**v1.0.1**
 
 ---
 
@@ -66,7 +66,12 @@ TRACE-deterministic-deduction-simulator/
 ├── class_Map.py
 ├── class_Body.py
 ├── class_Meeting.py
-└── class_Voting.py
+├── class_Voting.py
+├── .gitignore
+├── requirements.txt
+├── README.md
+└── LICENSE
+
 ```
 
 ### File Responsibilities
